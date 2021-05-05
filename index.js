@@ -5,9 +5,30 @@ const pathExists = require('path-exists');
 
 const stop = Symbol('findUp.stop');
 
-module.exports = async (name, options = {}) => {
-	let directory = path.resolve(options.cwd || '');
-	const {root} = path.parse(directory);
+const createPathIteratable = function * ({cwd} = {}) {
+	let currentDirectory = path.resolve(cwd || '');
+	const {root} = path.parse(currentDirectory);
+
+	yield currentDirectory;
+	while (currentDirectory !== root) {
+		currentDirectory = path.dirname(currentDirectory);
+		yield currentDirectory;
+	}
+};
+
+const createAsyncPathIteratable = async function * (options) {
+	const iterable = createPathIteratable(options);
+	for (const directory of iterable) {
+		yield directory;
+	}
+};
+
+module.exports = async (name, iterable, options = {}) => {
+	if (!iterable || typeof iterable[Symbol.asyncIterator] !== 'function') {
+		options = iterable || {};
+		iterable = createAsyncPathIteratable(options);
+	}
+
 	const paths = [].concat(name);
 
 	const runMatcher = async locateOptions => {
@@ -23,9 +44,7 @@ module.exports = async (name, options = {}) => {
 		return foundPath;
 	};
 
-	// eslint-disable-next-line no-constant-condition
-	while (true) {
-		// eslint-disable-next-line no-await-in-loop
+	for await (const directory of iterable) {
 		const foundPath = await runMatcher({...options, cwd: directory});
 
 		if (foundPath === stop) {
@@ -35,18 +54,15 @@ module.exports = async (name, options = {}) => {
 		if (foundPath) {
 			return path.resolve(directory, foundPath);
 		}
-
-		if (directory === root) {
-			return;
-		}
-
-		directory = path.dirname(directory);
 	}
 };
 
-module.exports.sync = (name, options = {}) => {
-	let directory = path.resolve(options.cwd || '');
-	const {root} = path.parse(directory);
+module.exports.sync = (name, iterable, options = {}) => {
+	if (!iterable || typeof iterable[Symbol.iterator] !== 'function') {
+		options = iterable || {};
+		iterable = createPathIteratable(options);
+	}
+
 	const paths = [].concat(name);
 
 	const runMatcher = locateOptions => {
@@ -62,8 +78,7 @@ module.exports.sync = (name, options = {}) => {
 		return foundPath;
 	};
 
-	// eslint-disable-next-line no-constant-condition
-	while (true) {
+	for (const directory of iterable) {
 		const foundPath = runMatcher({...options, cwd: directory});
 
 		if (foundPath === stop) {
@@ -73,12 +88,6 @@ module.exports.sync = (name, options = {}) => {
 		if (foundPath) {
 			return path.resolve(directory, foundPath);
 		}
-
-		if (directory === root) {
-			return;
-		}
-
-		directory = path.dirname(directory);
 	}
 };
 

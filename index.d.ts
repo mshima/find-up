@@ -38,6 +38,15 @@ declare const findUp: {
 		(name: string | readonly string[], options?: findUp.Options): string | undefined;
 
 		/**
+		Synchronously find a file or directory by walking through iterable directories.
+
+		@param name - Name of the file or directory to find. Can be multiple.
+				@param paths - Iterable object with paths to check.
+		@returns The first path found (by respecting the order of `name`s) or `undefined` if none could be found.
+		*/
+		(name: string | readonly string[], paths: Iterable<string>, options?: findUp.Options): string | undefined;
+
+		/**
 		Synchronously find a file or directory by walking up parent directories.
 
 		@param matcher - Called for each directory in the search. Return a path or `findUp.stop` to stop the search.
@@ -56,6 +65,37 @@ declare const findUp: {
 		```
 		*/
 		(matcher: (directory: string) => findUp.Match, options?: findUp.Options): string | undefined;
+
+		/**
+		Synchronously find a file or directory by walking through iterable directories.
+
+		@param matcher - Called for each directory in the search. Return a path or `findUp.stop` to stop the search.
+				@param paths - Iterable object with paths to check.
+				@returns The first path found or `undefined` if none could be found.
+
+		@example
+		```
+		import path = require('path');
+		import process = require('process');
+		import findUp = require('find-up');
+
+		console.log(findUp.sync(directory => {
+			const hasUnicorns = findUp.sync.exists(path.join(directory, 'unicorn.png'));
+			return hasUnicorns && directory;
+		}, function * (cwd = process.cwd()) {
+			const parts = cwd.split(path.separator);
+			let {root: currentDirectory} = path.parse(cwd);
+
+			yield currentDirectory;
+			while (currentDirectory !== cwd) {
+				currentDirectory = path.join(parts.shift());
+				yield currentDirectory;
+			}
+		}(), {type: 'directory'}));
+		//=> '/Users/sindresorhus'
+		```
+		*/
+		(matcher: (directory: string) => findUp.Match, paths: Iterable<string>, options?: findUp.Options): string | undefined;
 	};
 
 	/**
@@ -113,6 +153,44 @@ declare const findUp: {
 	(name: string | readonly string[], options?: findUp.Options): Promise<string | undefined>;
 
 	/**
+	Find a file or directory by walking through iterable directories.
+
+	@param name - Name of the file or directory to find. Can be multiple.
+	@returns The first path found (by respecting the order of `name`s) or `undefined` if none could be found.
+
+	@example
+	```
+	// /
+	// └── Users
+	//     └── sindresorhus
+	//         ├── unicorn.png
+	//         └── foo
+	//             └── bar
+	//                 ├── baz
+	//                 └── example.js
+
+	// example.js
+	import findUp = require('find-up');
+	import process = require('process');
+
+	(async () => {
+		console.log(await findUp('unicorn.png', async function * (cwd = process.cwd()) {
+			const parts = cwd.split(path.separator);
+			let {root: currentDirectory} = path.parse(cwd);
+
+			yield currentDirectory;
+			while (currentDirectory !== cwd) {
+				currentDirectory = path.join(parts.shift());
+				yield currentDirectory;
+			}
+		}()));
+		//=> '/Users/sindresorhus/unicorn.png'
+	})();
+	```
+	*/
+	(name: string | readonly string[], paths: AsyncGenerator<string>, options?: findUp.Options): Promise<string | undefined>;
+
+	/**
 	Find a file or directory by walking up parent directories.
 
 	@param matcher - Called for each directory in the search. Return a path or `findUp.stop` to stop the search.
@@ -133,6 +211,38 @@ declare const findUp: {
 	```
 	*/
 	(matcher: (directory: string) => (findUp.Match | Promise<findUp.Match>), options?: findUp.Options): Promise<string | undefined>;
+
+	/**
+	Find a file or directory by walking through iterable directories.
+
+	@param matcher - Called for each directory in the search. Return a path or `findUp.stop` to stop the search.
+	@returns The first path found or `undefined` if none could be found.
+
+	@example
+	```
+	import path = require('path');
+	import findUp = require('find-up');
+	import process = require('process');
+
+	(async () => {
+		console.log(await findUp(async directory => {
+			const hasUnicorns = await findUp.exists(path.join(directory, 'unicorn.png'));
+			return hasUnicorns && directory;
+		}, async function * (cwd = process.cwd()) {
+			const parts = cwd.split(path.separator);
+			let {root: currentDirectory} = path.parse(cwd);
+
+			yield currentDirectory;
+			while (currentDirectory !== cwd) {
+				currentDirectory = path.join(parts.shift());
+				yield currentDirectory;
+			}
+		}(), {type: 'directory'}));
+		//=> '/Users/sindresorhus'
+	})();
+	```
+	*/
+	(matcher: (directory: string) => (findUp.Match | Promise<findUp.Match>), paths: AsyncGenerator<string>, options?: findUp.Options): Promise<string | undefined>;
 };
 
 export = findUp;
